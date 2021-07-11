@@ -1,7 +1,12 @@
-const Web3 = require("web3");
-const HDWalletProvider = require("@truffle/hdwallet-provider");
+//const Web3 = require("web3");
+//const HDWalletProvider = require("@truffle/hdwallet-provider");
+
+const { Wallet, providers, Contract, utils } = require("ethers");
+
 const { getAbi, getAddress } = require("@uma/core");
 const { parseFixed } = require("@ethersproject/bignumber");
+
+const { hexZeroPad } = utils;
 
 // Arguments:
 // --url: node url, by default points at http://localhost:8545.
@@ -46,72 +51,74 @@ const proposerReward = argv.prepaidProposerReward ? argv.prepaidProposerReward :
 (async () => {
   const url = argv.url || "http://localhost:8545";
 
-  // See HDWalletProvider documentation: https://www.npmjs.com/package/@truffle/hdwallet-provider.
-  const hdwalletOptions = {
-    mnemonic: {
-      phrase: argv.mnemonic,
-    },
-    providerOrUrl: url,
-    addressIndex: 0, // Change this to use the nth account.
-  };
+//// See HDWalletProvider documentation: https://www.npmjs.com/package/@truffle/hdwallet-provider.
+//const hdwalletOptions = {
+//  mnemonic: {
+//    phrase: argv.mnemonic,
+//  },
+//  providerOrUrl: url,
+//  addressIndex: 0, // Change this to use the nth account.
+//};
 
   // Initialize web3 with an HDWalletProvider if a mnemonic was provided. Otherwise, just give it the url.
-  const web3 = new Web3(argv.mnemonic ? new HDWalletProvider(hdwalletOptions) : url);
-  const { toWei, utf8ToHex, padRight } = web3.utils;
+  //const web3 = new Web3(argv.mnemonic ? new HDWalletProvider(hdwalletOptions) : url);
 
-  const accounts = await web3.eth.getAccounts();
-  if (!accounts || accounts.length === 0)
-    throw "No accounts. Must provide mnemonic or node must have unlocked accounts.";
-  const account = accounts[0];
-  const networkId = await web3.eth.net.getId();
+  const provider = new providers.JsonRpcProvider(url, "kovan"); // TODO pass in network
+  const signer = Wallet.fromMnemonic(argv.mnemonic).connect(provider);
+  const account = signer.address;
+
+  if (!account)
+    throw "No account. Must provide mnemonic or node must have unlocked accounts.";
 
   // Grab collateral decimals.
-  const collateral = new web3.eth.Contract(
+  const collateral = new Contract(
+    argv.collateralToken,
     getAbi("IERC20Standard"),
-    argv.collateralToken
+    signer
   );
-  const decimals = (await collateral.methods.decimals().call()).toString();
 
+  const decimals = (await collateral.decimals()).toString();
 
   // LSP parameters. Pass in arguments to customize these.
   const lspParams = {
     expirationTimestamp: argv.expirationTimestamp, // Timestamp that the contract will expire at.
     collateralPerPair: argv.collateralPerPair,
-    priceIdentifier: padRight(utf8ToHex(argv.priceIdentifier.toString()), 64), // Price identifier to use.
+    priceIdentifier: utils.formatBytes32String(argv.priceIdentifier), // Price identifier to use.
     syntheticName: argv.syntheticName, // Long name.
     syntheticSymbol: argv.syntheticSymbol, // Short name.
     collateralToken: argv.collateralToken.toString(), // Collateral token address.
     financialProductLibrary: argv.financialProductLibrary,
-    customAncillaryData: utf8ToHex(ancillaryData), // Default to empty bytes array if no ancillary data is passed.
+    customAncillaryData: utils.formatBytes32String(ancillaryData ?? 0), // Default to empty bytes array if no ancillary data is passed.
     prepaidProposerReward: proposerReward // Default to 0 if no prepaid proposer reward is passed.
   };
 
   console.log("params:", lspParams);
 
-  const lspCreator = new web3.eth.Contract(
+  const lspCreator = new Contract(
+    lspCreatorAddress,
     getAbi("LongShortPairCreator"),
-    lspCreatorAddress
+    signer
   );
-
-  console.log("network id:", networkId);
 
   // Transaction parameters
   const transactionOptions = {
-    gas: 12000000, // 12MM is very high. Set this lower if you only have < 2 ETH or so in your wallet.
     gasPrice: argv.gasprice * 1000000000, // gasprice arg * 1 GWEI
-    from: account,
+    gasLimit: 12000000, // 12MM is very high. Set this lower if you only have < 2 ETH or so in your wallet.
   };
 
   // Simulate transaction to test before sending to the network.
   console.log("Simulating Deployment...");
-  const address = await lspCreator.methods.createLongShortPair(...Object.values(lspParams)).call(transactionOptions);
+  //const address = await lspCreator.callStatic.createLongShortPair(...Object.values(lspParams), transactionOptions)
+  const address = await lspCreator.callStatic.createLongShortPair(...Object.values(lspParams), transactionOptions)
   console.log("Simulation successful. Expected Address:", address);
 
   // Since the simulated transaction succeeded, send the real one to the network.
-  const { transactionHash } = await lspCreator.methods.createLongShortPair(...Object.values(lspParams)).send(transactionOptions);
+  const transaction = await lspCreator.createLongShortPair(...Object.values(lspParams), transactionOptions);
+  const transactionHash = await transaction.wait();
   console.log("Deployed in transaction:", transactionHash);
+
   process.exit(0);
-})().catch((e) => {
+  })().catch((e) => {
   console.error(e);
   process.exit(1); // Exit with a nonzero exit code to signal failure.
 });

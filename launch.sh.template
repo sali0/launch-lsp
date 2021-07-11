@@ -1,0 +1,12 @@
+node index.js \
+	--gasprice 20 \
+	--url "NODE_URL" \
+	--mnemonic "MNEMONIC" \
+	--lspCreatorAddress LSP_CREATOR_ADDRESS \
+	--expirationTimestamp EXPIRATION \
+	--collateralPerPair COLLATERAL_PER_PAIR \
+	--priceIdentifier "ETHUSD" \
+	--collateralToken COLLATERAL_ADDRESS \
+	--syntheticName "SYNTH_NAME" \
+	--syntheticSymbol SYNTH_SYMBOL \
+	--financialProductLibrary FPL_ADDRESS
