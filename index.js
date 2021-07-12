@@ -51,18 +51,7 @@ const proposerReward = argv.prepaidProposerReward ? argv.prepaidProposerReward :
 (async () => {
   const url = argv.url || "http://localhost:8545";
 
-//// See HDWalletProvider documentation: https://www.npmjs.com/package/@truffle/hdwallet-provider.
-//const hdwalletOptions = {
-//  mnemonic: {
-//    phrase: argv.mnemonic,
-//  },
-//  providerOrUrl: url,
-//  addressIndex: 0, // Change this to use the nth account.
-//};
-
   // Initialize web3 with an HDWalletProvider if a mnemonic was provided. Otherwise, just give it the url.
-  //const web3 = new Web3(argv.mnemonic ? new HDWalletProvider(hdwalletOptions) : url);
-
   const provider = new providers.JsonRpcProvider(url, "kovan"); // TODO pass in network
   const signer = Wallet.fromMnemonic(argv.mnemonic).connect(provider);
   const account = signer.address;
@@ -102,7 +91,7 @@ const proposerReward = argv.prepaidProposerReward ? argv.prepaidProposerReward :
 
   // Transaction parameters
   const transactionOptions = {
-    gasPrice: argv.gasprice * 1000000000, // gasprice arg * 1 GWEI
+    gasPrice: argv.gasprice * 1000000000, // TODO gasprice arg * 1 GWEI
     gasLimit: 12000000, // 12MM is very high. Set this lower if you only have < 2 ETH or so in your wallet.
   };
 
